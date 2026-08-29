@@ -368,6 +368,60 @@ app.get(
 );
 
 /* ============================================================
+   HEALTH
+   ============================================================ */
+
+app.get(
+  "/health",
+  asyncHandler(async (req, res) => {
+    try {
+      const pool = getPool();
+      await pool.query("SELECT 1");
+
+      const tablesRes = await pool.query(
+        `SELECT c.relname AS name, COALESCE(s.n_live_tup, 0)::bigint AS approx_rows
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+         WHERE n.nspname = 'public'
+           AND c.relkind = 'r'
+           AND c.relname = ANY($1::text[])`,
+        [["learners", "attempts", "responses", "session_control"]]
+      );
+
+      const tables = {};
+      const required = ["learners", "attempts", "responses", "session_control"];
+      required.forEach(function (name) {
+        tables[name] = null;
+      });
+      tablesRes.rows.forEach(function (row) {
+        tables[row.name] = Number(row.approx_rows);
+      });
+
+      const missing = required.filter(function (name) {
+        return tables[name] === null;
+      });
+      if (missing.length) {
+        return res.status(503).json({
+          ok: false,
+          db: "up",
+          error: "Missing tables: " + missing.join(", "),
+          tables: tables,
+        });
+      }
+
+      res.json({ ok: true, db: "up", tables: tables });
+    } catch (err) {
+      res.status(503).json({
+        ok: false,
+        db: "down",
+        error: err.message || "Database unreachable",
+      });
+    }
+  })
+);
+
+/* ============================================================
    STATIC + ERRORS
    ============================================================ */
 

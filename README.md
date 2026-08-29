@@ -78,6 +78,21 @@ see those four tables and one seed row in `session_control`.
 
 Web app → **Settings → Networking** → generate a public domain.
 
+### 5. Verify DB connection and writes
+
+1. Open `https://<your-domain>/health`
+   - Healthy: `{ "ok": true, "db": "up", "tables": { "learners": 0, ... } }`
+   - Unhealthy: HTTP 503 with `"db": "down"` (Postgres not reachable / not wired)
+2. On the site, sign in as a learner (name + email).
+3. In Railway → **Postgres** → **Data** (or Query), open the `learners` table — you should see that row.
+4. Start a case; rows appear in `attempts` / `responses` as answers are saved.
+5. Optional API smoke test from your machine:
+   ```powershell
+   npm run smoke -- https://<your-domain>
+   ```
+
+Railway also probes `/health` after deploy (`healthcheckPath` in `railway.json`).
+
 ## Local development
 
 Private `*.railway.internal` hosts only work **inside Railway**. For your
