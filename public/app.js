@@ -104,7 +104,6 @@ function renderLanding() {
         <button class="btn btn-dark btn-block" id="trainer-login-btn">Enter Dashboard \u2192</button>\
       </div>\
     </div>\
-    ' + (DB.isLocalPreview ? '<div class="preview-banner">Running in local preview mode \u2014 connect Supabase in config.js to enable live sync across devices.</div>' : "") + '\
   </div>';
 }
 
@@ -863,23 +862,33 @@ function handleLearnerLogin() {
 
 function handleTrainerLogin() {
   var code = ($("tr-code").value || "").trim();
-  if (!DB.loginTrainer(code)) {
-    STATE.trainerError = "Incorrect code.";
+  if (!code) {
+    STATE.trainerError = "Enter the access code.";
     render(); return;
   }
   STATE.trainerError = "";
-  STATE.role = "trainer";
-  DB.getSessionLive().then(function (live) { STATE.sessionLive = live; });
-  STATE.trainer.unsub = DB.subscribeLearners(function (learners) {
-    STATE.trainer.learners = learners;
-    if (STATE.screen === "trainer-dashboard") render();
+  DB.loginTrainer(code).then(function (ok) {
+    if (!ok) {
+      STATE.trainerError = "Incorrect code.";
+      render(); return;
+    }
+    STATE.role = "trainer";
+    DB.getSessionLive().then(function (live) { STATE.sessionLive = live; });
+    STATE.trainer.unsub = DB.subscribeLearners(function (learners) {
+      STATE.trainer.learners = learners;
+      if (STATE.screen === "trainer-dashboard") render();
+    });
+    goto("trainer-dashboard");
+  }).catch(function () {
+    STATE.trainerError = "Couldn't log you in — please try again.";
+    render();
   });
-  goto("trainer-dashboard");
 }
 
 function handleLogout() {
   if (STATE.unsubSession) { STATE.unsubSession(); STATE.unsubSession = null; }
   if (STATE.trainer.unsub) { STATE.trainer.unsub(); STATE.trainer.unsub = null; }
+  DB.logout();
   STATE.role = null; STATE.learner = null; STATE.loginError = ""; STATE.trainerError = "";
   STATE.roundState = {}; STATE.currentRound = null;
   STATE.trainer.learners = []; STATE.trainer.selectedDetail = null;
